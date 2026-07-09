@@ -101,37 +101,52 @@ def create_memory():
 
 
 # ==========================================
-# LOAD PDF AND CREATE RETRIEVER
+# LOAD PDFS AND CREATE RETRIEVER
 # ==========================================
 
-def create_retriever(pdf_path):
+def create_retriever(pdf_paths):
     """
     Creates the RAG retrieval system.
 
     Steps:
-    1. Load PDF
-    2. Split PDF into chunks
-    3. Convert chunks into embeddings
-    4. Store embeddings in Chroma
-    5. Return retriever
+    1. Load multiple PDFs
+    2. Add metadata
+    3. Split into chunks
+    4. Create embeddings
+    5. Store in Chroma
+    6. Return retriever
     """
 
-    # --------------------------------------
-    # STEP 1: LOAD PDF
-    # --------------------------------------
-
-    loader = PyPDFLoader(pdf_path)
-
-    documents = loader.load()
-
-    # documents now contains
-    # page 1
-    # page 2
-    # page 3
-    # etc...
+    documents = []
 
     # --------------------------------------
-    # STEP 2: SPLIT DOCUMENT
+    # LOAD ALL PDFs
+    # --------------------------------------
+
+    for pdf_path in pdf_paths:
+
+        loader = PyPDFLoader(pdf_path)
+
+        docs = loader.load()
+
+        # Add filename metadata
+        for doc in docs:
+
+            doc.metadata["source"] = os.path.basename(
+                pdf_path
+            )
+
+            # Page already exists in metadata
+            # but ensure it is available
+
+            doc.metadata["page"] = (
+                doc.metadata.get("page", 0) + 1
+            )
+
+        documents.extend(docs)
+
+    # --------------------------------------
+    # SPLIT DOCUMENTS
     # --------------------------------------
 
     splitter = RecursiveCharacterTextSplitter(
@@ -139,49 +154,20 @@ def create_retriever(pdf_path):
         chunk_overlap=100
     )
 
-    splits = splitter.split_documents(documents)
-
-    """
-    Example:
-
-    Page = 5000 characters
-
-    Split into:
-
-    Chunk 1 = 1000 chars
-    Chunk 2 = 1000 chars
-    Chunk 3 = 1000 chars
-
-    overlap = 100
-
-    This helps retrieval become more accurate.
-    """
+    splits = splitter.split_documents(
+        documents
+    )
 
     # --------------------------------------
-    # STEP 3: CREATE EMBEDDINGS
+    # CREATE EMBEDDINGS
     # --------------------------------------
 
     embeddings = GoogleGenerativeAIEmbeddings(
-    model="gemini-embedding-001"
-)
-
-    """
-    Embeddings convert text into numbers.
-
-    Example:
-
-    "Mean and Median"
-
-    becomes
-
-    [0.34, 0.56, 0.98, ...]
-
-    Similar meanings become
-    mathematically close.
-    """
+        model="gemini-embedding-001"
+    )
 
     # --------------------------------------
-    # STEP 4: CREATE VECTOR DATABASE
+    # CREATE VECTOR DATABASE
     # --------------------------------------
 
     vectorstore = Chroma.from_documents(
@@ -189,33 +175,15 @@ def create_retriever(pdf_path):
         embedding=embeddings
     )
 
-    """
-    Chroma stores embeddings.
-
-    Later when user asks:
-
-    "What is hypothesis testing?"
-
-    Chroma finds the most relevant chunks.
-    """
-
     # --------------------------------------
-    # STEP 5: CREATE RETRIEVER
+    # CREATE RETRIEVER
     # --------------------------------------
 
     retriever = vectorstore.as_retriever(
         search_kwargs={"k": 4}
     )
 
-    """
-    k = 4
-
-    Retrieve top 4 most relevant chunks
-    from the PDF.
-    """
-
     return retriever
-
 
 # ==========================================
 # MAIN PROMPT
@@ -333,21 +301,17 @@ def ask_question(
 # INITIALIZE EVERYTHING
 # ==========================================
 
-def initialize_chatbot(pdf_path):
+def initialize_chatbot(pdf_paths):
     """
     Creates all required components.
-
-    Returns:
-
-    llm
-    memory
-    retriever
     """
 
     llm = create_llm()
 
     memory = create_memory()
 
-    retriever = create_retriever(pdf_path)
+    retriever = create_retriever(
+        pdf_paths
+    )
 
     return llm, memory, retriever

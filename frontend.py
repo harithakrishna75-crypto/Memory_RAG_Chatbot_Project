@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import backend as demo
 
@@ -17,25 +18,29 @@ st.caption("Powered by Gemini + LangChain + Chroma")
 # ==========================================
 # SIDEBAR
 # ==========================================
-
 with st.sidebar:
 
     st.header("Controls")
 
-    if st.button("Clear Conversation",
-                 use_container_width=True):
-
-        llm, memory, retriever = demo.initialize_chatbot(
-            "PDFs/NCHS Data Brief.pdf"
-        )
-
-        st.session_state.llm = llm
-        st.session_state.memory = memory
-        st.session_state.retriever = retriever
+    if st.button(
+        "Clear Conversation",
+        use_container_width=True
+    ):
 
         st.session_state.chat_history = []
 
+        if "memory" in st.session_state:
+            del st.session_state.memory
+
         st.rerun()
+
+    st.header("Upload PDFs")
+
+    uploaded_files = st.file_uploader(
+        "Upload one or more PDFs",
+        type=["pdf"],
+        accept_multiple_files=True
+    )
 
     st.divider()
 
@@ -55,17 +60,57 @@ with st.sidebar:
 # INITIALIZE CHATBOT
 # ==========================================
 
-if "llm" not in st.session_state:
+os.makedirs(
+    "uploaded_pdfs",
+    exist_ok=True
+)
+if uploaded_files:
 
-    with st.spinner("Loading PDF and creating vector database..."):
+    if "retriever" not in st.session_state:
 
-        llm, memory, retriever = demo.initialize_chatbot(
-            "PDFs/NCHS Data Brief.pdf"
-        )
+        with st.spinner(
+            "Processing PDFs and creating knowledge base..."
+        ):
 
-        st.session_state.llm = llm
-        st.session_state.memory = memory
-        st.session_state.retriever = retriever
+            pdf_paths = []
+
+            for uploaded_file in uploaded_files:
+
+                file_path = os.path.join(
+                    "uploaded_pdfs",
+                    uploaded_file.name
+                )
+
+                with open(
+                    file_path,
+                    "wb"
+                ) as f:
+
+                    f.write(
+                        uploaded_file.getbuffer()
+                    )
+
+                pdf_paths.append(
+                    file_path
+                )
+
+            llm, memory, retriever = (
+                demo.initialize_chatbot(
+                    pdf_paths
+                )
+            )
+
+            st.session_state.llm = llm
+            st.session_state.memory = memory
+            st.session_state.retriever = retriever
+
+else:
+
+    st.info(
+        "Please upload one or more PDFs."
+    )
+
+    st.stop()
 
 # ==========================================
 # CHAT HISTORY
