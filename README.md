@@ -1,28 +1,50 @@
-# Memory + RAG Chatbot using Gemini and LangChain
+Memory + Multi-Document RAG Chatbot using Gemini, LangChain, and Chroma
 
-A Retrieval-Augmented Generation (RAG) chatbot built with Google Gemini, LangChain, Chroma, and Streamlit that answers questions from PDF documents while maintaining conversational memory.
+A Retrieval-Augmented Generation (RAG) chatbot built with Google Gemini, LangChain, ChromaDB, and Streamlit that enables users to upload multiple PDF documents, create a dynamic knowledge base, and ask natural language questions while maintaining conversational memory.
 
-## Features
-
-- PDF-based question answering
-- Retrieval-Augmented Generation (RAG)
-- Semantic search using embeddings
-- Chroma vector database for document retrieval
-- Conversation memory using LangChain
-- Streamlit-based chat interface
-- Session reset functionality
-- Secure API key management using environment variables
-
-## Tech Stack
-
-- Python
-- Google Gemini 2.5 Flash
-- LangChain
-- Chroma Vector Database
-- Google Generative AI Embeddings
-- Streamlit
-- python-dotenv
-
-## How It Works
-
-The chatbot loads a PDF document, splits it into chunks, converts the chunks into vector embeddings, and stores them in a Chroma vector database. When a user asks a question, the system retrieves the most relevant document sections and provides them to Gemini for answer generation. ConversationSummaryBufferMemory maintains context across interactions, enabling more natural multi-turn conversations.
+Features
+Current Features
+Multi-document PDF upload support
+Retrieval-Augmented Generation (RAG)
+Semantic search using vector embeddings
+Chroma vector database for document retrieval
+Conversational memory using LangChain
+Streamlit-based chat interface
+Session reset functionality
+Secure API key management using environment variables
+Dynamic knowledge base creation from uploaded PDFs
+Metadata tracking for source documents and page numbers
+Tech Stack
+Python
+Google Gemini 2.5 Flash
+LangChain
+ChromaDB
+Streamlit
+PyPDF
+Python-dotenv
+Architecture
+User Uploads PDFs
+        ↓
+PyPDFLoader
+        ↓
+Text Chunking
+        ↓
+Embeddings
+        ↓
+Chroma Vector Database
+        ↓
+Retriever
+        ↓
+Gemini 2.5 Flash
+        ↓
+Response Generation
+How It Works
+Users upload one or more PDF documents.
+Documents are loaded and split into manageable chunks.
+Each chunk is converted into vector embeddings.
+Embeddings are stored in a Chroma vector database.
+User queries are converted into vector representations.
+The retriever finds the most relevant document chunks.
+Retrieved context and conversation history are provided to Gemini.
+Gemini generates a context-aware response.
+Conversation memory maintains context across multiple interactions.
