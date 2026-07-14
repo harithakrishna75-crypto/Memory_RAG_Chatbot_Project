@@ -5,10 +5,13 @@
 import os
 from dotenv import load_dotenv
 
-# Gemini LLM
+# LLM
 from langchain_google_genai import (
-    ChatGoogleGenerativeAI,
-    GoogleGenerativeAIEmbeddings
+    ChatGoogleGenerativeAI
+)
+
+from langchain_huggingface import (
+    HuggingFaceEmbeddings
 )
 
 # Memory
@@ -23,6 +26,9 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 # Vector Database
 from langchain_chroma import Chroma
 
+# Hybrid Search
+from langchain_community.retrievers import BM25Retriever
+from langchain_classic.retrievers import EnsembleRetriever
 
 # ==========================================
 # LOAD ENVIRONMENT VARIABLES
@@ -119,31 +125,34 @@ def create_retriever(pdf_paths):
 
     documents = []
 
+    print(f"Total PDFs uploaded: {len(pdf_paths)}")
+
     # --------------------------------------
     # LOAD ALL PDFs
     # --------------------------------------
 
     for pdf_path in pdf_paths:
 
+        print(f"Loading PDF: {pdf_path}")
+
         loader = PyPDFLoader(pdf_path)
 
         docs = loader.load()
 
-        # Add filename metadata
+        # Add metadata
         for doc in docs:
 
             doc.metadata["source"] = os.path.basename(
                 pdf_path
             )
 
-            # Page already exists in metadata
-            # but ensure it is available
-
             doc.metadata["page"] = (
                 doc.metadata.get("page", 0) + 1
             )
 
         documents.extend(docs)
+
+    print(f"Total pages loaded: {len(documents)}")
 
     # --------------------------------------
     # SPLIT DOCUMENTS
@@ -158,13 +167,17 @@ def create_retriever(pdf_paths):
         documents
     )
 
+    print(f"Total chunks created: {len(splits)}")
+
     # --------------------------------------
     # CREATE EMBEDDINGS
     # --------------------------------------
 
-    embeddings = GoogleGenerativeAIEmbeddings(
-        model="gemini-embedding-001"
+    embeddings = HuggingFaceEmbeddings(
+        model_name="sentence-transformers/all-MiniLM-L6-v2"
     )
+
+    print("Hugging Face embedding model loaded successfully")
 
     # --------------------------------------
     # CREATE VECTOR DATABASE
@@ -175,13 +188,43 @@ def create_retriever(pdf_paths):
         embedding=embeddings
     )
 
+    print("Chroma vector database created successfully")
+
     # --------------------------------------
-    # CREATE RETRIEVER
+    # VECTOR RETRIEVER
     # --------------------------------------
 
-    retriever = vectorstore.as_retriever(
+    vector_retriever = vectorstore.as_retriever(
         search_kwargs={"k": 4}
     )
+
+    print("Vector retriever created")
+
+    # --------------------------------------
+    # BM25 RETRIEVER
+    # --------------------------------------
+
+    bm25_retriever = BM25Retriever.from_documents(
+        splits
+    )
+
+    bm25_retriever.k = 4
+
+    print("BM25 retriever created")
+
+    # --------------------------------------
+    # HYBRID RETRIEVER
+    # --------------------------------------
+
+    retriever = EnsembleRetriever(
+        retrievers=[
+            bm25_retriever,
+            vector_retriever
+        ],
+        weights=[0.4, 0.6]
+    )
+
+    print("Hybrid retriever created")
 
     return retriever
 
@@ -243,7 +286,6 @@ def ask_question(
           ↓
     Return Answer
     """
-
     # --------------------------------------
     # STEP 1: RETRIEVE PDF CONTENT
     # --------------------------------------
@@ -254,6 +296,31 @@ def ask_question(
         doc.page_content
         for doc in docs
     )
+
+    # --------------------------------------
+    # COLLECT SOURCES
+    # --------------------------------------
+
+    sources = []
+
+    for doc in docs:
+
+        source = doc.metadata.get(
+            "source",
+            "Unknown Document"
+        )
+
+        page = doc.metadata.get(
+            "page",
+            "Unknown Page"
+        )
+
+        citation = (
+            f"{source} (Page {page})"
+        )
+
+        if citation not in sources:
+            sources.append(citation)
 
     # --------------------------------------
     # STEP 2: LOAD MEMORY
@@ -280,6 +347,18 @@ def ask_question(
     response = llm.invoke(prompt)
 
     answer = response.content
+
+    # --------------------------------------
+    # APPEND SOURCES
+    # --------------------------------------
+
+    if sources:
+
+        answer += "\n\nSources:\n"
+
+        for source in sources:
+
+            answer += f"- {source}\n"
 
     # --------------------------------------
     # STEP 5: SAVE TO MEMORY
